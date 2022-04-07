@@ -4,6 +4,8 @@ import pandas as pd
 import math
 import cv2
 from random import random
+import datetime
+import os
 
 from cnn.basic_agent import BasicAgent
 from cnn.structure import DroneQNet
@@ -31,10 +33,13 @@ def init_environment(map_file='map.csv', stations_file='bs.csv'):
     return env
 
 
-def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size):
+def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size, model_path, new_model_path, num_episode):
     #    Initialization
-    
+    start_num=num_episode-episodes
     agent = BasicAgent(actions)
+    if model_path: agent.model = load_model(model_path)
+    agent.model.train()
+    
    # agent.model = load_model("drone_model_2.pth")
     replay_memory = []
     #
@@ -51,7 +56,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
         cnt = 0 # number of moves in an episode
         total_reward = 0
         while not done:
-            env.render(show=True )
+            env.render(show=False )
                        #i > 990)
             cnt += 1
             iter_counts += 1
@@ -62,7 +67,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             observation, reward, done, _ = env.step(a)
             if cnt>400:
                 done = True
-            df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt, 'Action': a, 'Action type': a_type,'Reward': reward}
+            df_actions.loc[iter_counts] = {'Episode': start_num+i, 'Step': cnt, 'Action': a, 'Action type': a_type,'Reward': reward}
             total_reward += reward
             # if done and cnt < 200:
             #     reward = -1000
@@ -71,6 +76,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             replay_memory.append((cs, a, new_state, reward, done))
             # training the model after batch_size iterations
             if iter_counts % batch_size == 0:
+#                replay_memory=replay_memory[-10000:]
                 data = np.random.permutation(replay_memory)[:batch_size]
                 # train_qnet(model, data)
                 agent.train(data)
@@ -79,10 +85,10 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             cs = new_state
 
             
-        df.loc[i]={'Episode': i, 'Number of steps': cnt, 'Total reward': total_reward}
+        df.loc[i]={'Episode': start_num+i, 'Number of steps': cnt, 'Total reward': total_reward}
         print("Total reward:", total_reward)
         print("Episode finished after {0} timesteps".format(cnt))
-    save_model(agent.model, "drone_model_32.pth")
+    save_model(agent.model, new_model_path)
     return df, df_actions
 
 
@@ -126,6 +132,16 @@ def get_current_state(state_matrix, camera):
     return np.stack((state_matrix, resize_camera))
 
 
+def create_dir(name):
+     tables_dir="tables\\{}".format(name)
+     model_dir="models\\{}".format(name)
+     if not os.path.exists(tables_dir):
+         os.makedirs(tables_dir)
+     if not os.path.exists(model_dir):
+         os.makedirs(model_dir)
+     return model_dir, tables_dir
+
+
 def test_trained_net(env, iterate=50, model_path="drone_model.pth"):
     model = load_model(model_path)
 
@@ -155,7 +171,32 @@ if __name__ == '__main__':
     iterations = 180
     #
     #test_trained_net(env, iterate=200, model_path="drone_model_1.pth")
-    table, table_actions = train_RL(10, iterations, replace_iter, env, action_eps, 0.01, batch_s)
+    
+    
+    # Create a folder to save results
+    today=datetime.datetime.today().strftime("%Y-%m-%d-%H.%M")
+    today_model, today_tables = create_dir(today)
+    
+    model_path=False   
+   
+    # Cuantos episodios correr en seguido: 
+    episodes=5
+    # Cuantos veces reiniciar:   
+    change_n=10
+    # Cuantos episodios correr en total:    
+    all_episodes=episodes*(change_n+1)
+    
+    
+    for num_episode in range(episodes,all_episodes,episodes):
+        
+        new_model_path=today_model+"\\model_{}.pth".format(num_episode)       
+    
+        table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, model_path, new_model_path, num_episode)    
+
+        model_path=new_model_path
+
+        table_actions.to_csv (today_tables+"\\actions.csv", mode='a', sep=';', index = False, header=True)
+        table.to_csv (today_tables+"\\episodes.csv", mode='a', sep=';', index = False, header=True)
+        #     new_map=rel_map.map_reset(maptype="Random",obstracles=True)
+        
     env.close() 
-    table.to_csv('episodes.csv', sep=';', index = False, header=True)
-    table_actions.to_csv ('actions.csv', sep=';', index = False, header=True)
