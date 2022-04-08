@@ -56,7 +56,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
         cnt = 0 # number of moves in an episode
         total_reward = 0
         while not done:
-            env.render(show=False )
+#            env.render(show=False )
                        #i > 990)
             cnt += 1
             iter_counts += 1
@@ -76,7 +76,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             replay_memory.append((cs, a, new_state, reward, done))
             # training the model after batch_size iterations
             if iter_counts % batch_size == 0:
-#                replay_memory=replay_memory[-10000:]
+                replay_memory=replay_memory[-10000:]
                 data = np.random.permutation(replay_memory)[:batch_size]
                 # train_qnet(model, data)
                 agent.train(data)
@@ -180,23 +180,23 @@ if __name__ == '__main__':
     model_path=False   
    
     # Cuantos episodios correr en seguido: 
-    episodes=5
+    episodes=5000
     # Cuantos veces reiniciar:   
-    change_n=10
+    change_n=1
     # Cuantos episodios correr en total:    
     all_episodes=episodes*(change_n+1)
     
     
     for num_episode in range(episodes,all_episodes,episodes):
         
-        new_model_path=today_model+"\\model_{}.pth".format(num_episode)       
+        new_model_path=today_model+"/model_{}.pth".format(num_episode)       
     
         table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, model_path, new_model_path, num_episode)    
 
         model_path=new_model_path
 
-        table_actions.to_csv (today_tables+"\\actions.csv", mode='a', sep=';', index = False, header=True)
-        table.to_csv (today_tables+"\\episodes.csv", mode='a', sep=';', index = False, header=True)
+        table_actions.to_csv (today_tables+"/actions.csv", mode='a', sep=';', index = False, header=True)
+        table.to_csv (today_tables+"/episodes.csv", mode='a', sep=';', index = False, header=True)
         #     new_map=rel_map.map_reset(maptype="Random",obstracles=True)
         
     env.close() 
