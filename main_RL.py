@@ -33,12 +33,9 @@ def init_environment(map_file='map.csv', stations_file='bs.csv'):
     return env
 
 
-def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size, model_path, new_model_path, num_episode):
+def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size, today_model):
     #    Initialization
-    start_num=num_episode-episodes
     agent = BasicAgent(actions)
-    if model_path: agent.model = load_model(model_path)
-    agent.model.train()
     
    # agent.model = load_model("drone_model_2.pth")
     replay_memory = []
@@ -56,7 +53,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
         cnt = 0 # number of moves in an episode
         total_reward = 0
         while not done:
-#            env.render(show=False )
+            env.render(show=False )
                        #i > 990)
             cnt += 1
             iter_counts += 1
@@ -67,7 +64,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             observation, reward, done, _ = env.step(a)
             if cnt>400:
                 done = True
-            df_actions.loc[iter_counts] = {'Episode': start_num+i, 'Step': cnt, 'Action': a, 'Action type': a_type,'Reward': reward}
+            df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt, 'Action': a, 'Action type': a_type,'Reward': reward}
             total_reward += reward
             # if done and cnt < 200:
             #     reward = -1000
@@ -83,12 +80,15 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
                 if agent.train_iterations % replace_iterations == 0:
                     agent.replace_target_network()
             cs = new_state
+  
+            if (i+1) % 10 == 0:
+                new_model_path=today_model+"\\model_{}.pth".format(i+1)  
+                save_model(agent.model, new_model_path)
 
             
-        df.loc[i]={'Episode': start_num+i, 'Number of steps': cnt, 'Total reward': total_reward}
+        df.loc[i]={'Episode': i, 'Number of steps': cnt, 'Total reward': total_reward}
         print("Total reward:", total_reward)
         print("Episode finished after {0} timesteps".format(cnt))
-    save_model(agent.model, new_model_path)
     return df, df_actions
 
 
@@ -180,23 +180,16 @@ if __name__ == '__main__':
     model_path=False   
    
     # Cuantos episodios correr en seguido: 
-    episodes=5000
+    episodes=50
     # Cuantos veces reiniciar:   
     change_n=1
     # Cuantos episodios correr en total:    
     all_episodes=episodes*(change_n+1)
     
-    
-    for num_episode in range(episodes,all_episodes,episodes):
-        
-        new_model_path=today_model+"/model_{}.pth".format(num_episode)       
-    
-        table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, model_path, new_model_path, num_episode)    
+    table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, today_model)    
 
-        model_path=new_model_path
-
-        table_actions.to_csv (today_tables+"/actions.csv", mode='a', sep=';', index = False, header=True)
-        table.to_csv (today_tables+"/episodes.csv", mode='a', sep=';', index = False, header=True)
+    table_actions.to_csv (today_tables+"\\actions.csv", mode='a', sep=';', index = False, header=True)
+    table.to_csv (today_tables+"\\episodes.csv", mode='a', sep=';', index = False, header=True)
         #     new_map=rel_map.map_reset(maptype="Random",obstracles=True)
         
     env.close() 
