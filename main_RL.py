@@ -6,11 +6,20 @@ import cv2
 from random import random
 import datetime
 import os
+from sys import platform
 
 from cnn.basic_agent import BasicAgent
 from cnn.structure import DroneQNet
-from gym_drone.envs.drone_env import DroneEnv
+
 from constants import IMG_H, IMG_W, actions
+
+if platform == "win32":
+    # Remove drone-v0 from registry
+    import drone_remove
+    drone_remove
+    
+from gym_drone.envs.drone_env import DroneEnv
+
 
 
 def init_environment(map_file='map.csv', stations_file='bs.csv'):
@@ -27,13 +36,11 @@ def init_environment(map_file='map.csv', stations_file='bs.csv'):
     base_stations = np.zeros_like(env.relevance_map)
     mid_x, mid_y = int(base_stations.shape[0]/2), int(base_stations.shape[1]/2)
     base_stations[mid_x, mid_y] = 100
-    print(base_stations)
-    base_coord = env.get_bases(base_stations)
-    print(base_coord)
+    env.get_bases(base_stations)
     return env
 
 
-def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size, today_model):
+def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size, today_model, today_tables):
     #    Initialization
     agent = BasicAgent(actions)
     
@@ -53,7 +60,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
         cnt = 0 # number of moves in an episode
         total_reward = 0
         while not done:
-            env.render(show=False )
+#            env.render(show=False )
                        #i > 990)
             cnt += 1
             iter_counts += 1
@@ -73,8 +80,8 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             replay_memory.append((cs, a, new_state, reward, done))
             # training the model after batch_size iterations
             if iter_counts % batch_size == 0:
-                replay_memory=replay_memory[-10000:]
-                data = np.random.permutation(replay_memory)[:batch_size]
+                replay_memory=replay_memory[-1024:]
+                data = np.random.permutation(np.array(replay_memory, dtype=object))[:batch_size]
                 # train_qnet(model, data)
                 agent.train(data)
                 if agent.train_iterations % replace_iterations == 0:
@@ -82,8 +89,9 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             cs = new_state
   
             if (i+1) % 10 == 0:
-                new_model_path=today_model+"\\model_{}.pth".format(i+1)  
+                new_model_path=today_model+"model_{}.pth".format(i+1)  
                 save_model(agent.model, new_model_path)
+                save_tables(df, df_actions, today_tables)
 
             
         df.loc[i]={'Episode': i, 'Number of steps': cnt, 'Total reward': total_reward}
@@ -106,6 +114,11 @@ def select_action(model, cs, action_epsilon):
 
 def save_model(model, path):
     torch_save(model.state_dict(), path)
+    
+def save_tables(table, table_actions, path):
+    table_actions.to_csv (path+"actions.csv", mode='a', sep=';', index = False, header=True)
+    table.to_csv (path+"episodes.csv", mode='a', sep=';', index = False, header=True)
+
 
 
 def load_model(path):
@@ -132,14 +145,25 @@ def get_current_state(state_matrix, camera):
     return np.stack((state_matrix, resize_camera))
 
 
-def create_dir(name):
-     tables_dir="tables\\{}".format(name)
-     model_dir="models\\{}".format(name)
+def create_dir_win32(name):
+     tables_dir="tables\\{}\\".format(name)
+     model_dir="models\\{}\\".format(name)
      if not os.path.exists(tables_dir):
          os.makedirs(tables_dir)
      if not os.path.exists(model_dir):
          os.makedirs(model_dir)
+         
      return model_dir, tables_dir
+ 
+def create_dir_linux(name):
+     tables_dir="tables/{}/".format(name)
+     model_dir="models/{}/".format(name)
+     if not os.path.exists(tables_dir):
+         os.makedirs(tables_dir)
+     if not os.path.exists(model_dir):
+         os.makedirs(model_dir)
+         
+     return model_dir, tables_dir    
 
 
 def test_trained_net(env, iterate=50, model_path="drone_model.pth"):
@@ -159,6 +183,19 @@ def test_trained_net(env, iterate=50, model_path="drone_model.pth"):
 
 
 if __name__ == '__main__':
+    
+    # Create a folder to save results
+    today=datetime.datetime.today().strftime("%Y-%m-%d-%H.%M")
+    
+    if platform == "linux" or platform == "linux2":
+        today_model, today_tables = create_dir_linux(today)
+    elif platform == "win32":
+        today_model, today_tables = create_dir_win32(today)
+    else:
+        print('unknown OS')
+    
+    model_path=False   
+    
     # PARAMS
     # episodes, iterations, env, action_epsilon, epsilon_decrease, batch_size
     m_file = "ones.csv"
@@ -172,12 +209,6 @@ if __name__ == '__main__':
     #
     #test_trained_net(env, iterate=200, model_path="drone_model_1.pth")
     
-    
-    # Create a folder to save results
-    today=datetime.datetime.today().strftime("%Y-%m-%d-%H.%M")
-    today_model, today_tables = create_dir(today)
-    
-    model_path=False   
    
     # Cuantos episodios correr en seguido: 
     episodes=50
@@ -186,10 +217,7 @@ if __name__ == '__main__':
     # Cuantos episodios correr en total:    
     all_episodes=episodes*(change_n+1)
     
-    table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, today_model)    
-
-    table_actions.to_csv (today_tables+"\\actions.csv", mode='a', sep=';', index = False, header=True)
-    table.to_csv (today_tables+"\\episodes.csv", mode='a', sep=';', index = False, header=True)
+    table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, today_model, today_tables)    
         #     new_map=rel_map.map_reset(maptype="Random",obstracles=True)
         
     env.close() 
