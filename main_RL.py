@@ -80,7 +80,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             replay_memory.append((cs, a, new_state, reward, done))
             # training the model after batch_size iterations
             if iter_counts % batch_size == 0:
-                replay_memory=replay_memory[-1024:]
+                replay_memory=replay_memory[-10000:]
                 data = np.random.permutation(np.array(replay_memory, dtype=object))[:batch_size]
                 # train_qnet(model, data)
                 agent.train(data)
@@ -88,10 +88,10 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
                     agent.replace_target_network()
             cs = new_state
   
-            if (i+1) % 10 == 0:
-                new_model_path=today_model+"model_{}.pth".format(i+1)  
-                save_model(agent.model, new_model_path)
-                save_tables(df, df_actions, today_tables)
+        if (i+1) % 1000 == 0:
+            new_model_path=today_model+"model_{}.pth".format(i+1)  
+            save_model(agent.model, new_model_path)
+            save_tables(df, df_actions, today_tables)
 
             
         df.loc[i]={'Episode': i, 'Number of steps': cnt, 'Total reward': total_reward}
@@ -116,8 +116,8 @@ def save_model(model, path):
     torch_save(model.state_dict(), path)
     
 def save_tables(table, table_actions, path):
-    table_actions.to_csv (path+"actions.csv", mode='a', sep=';', index = False, header=True)
-    table.to_csv (path+"episodes.csv", mode='a', sep=';', index = False, header=True)
+    table_actions.to_csv (path+"actions.csv", sep=';', index = False, header=True)
+    table.to_csv (path+"episodes.csv", sep=';', index = False, header=True)
 
 
 
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     
    
     # Cuantos episodios correr en seguido: 
-    episodes=50
+    episodes=5000
     # Cuantos veces reiniciar:   
     change_n=1
     # Cuantos episodios correr en total:    
