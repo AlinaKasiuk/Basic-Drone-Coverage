@@ -41,7 +41,7 @@ def init_environment(map_file='map.csv', stations_file='bs.csv'):
     return env
 
 
-def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size, today_model, today_tables):
+def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size, path):
     #    Initialization
     agent = BasicAgent(actions)
     
@@ -53,7 +53,6 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
     df_actions = pd.DataFrame(columns=['Episode', 'Step', 'Action', 'Action type','Action duration', 'Reward'])
     for i in range(episodes):
         # env.render(show=True)
-        print("episode No", i)
         # the current state is the initial state
         state_matrix, cameraspot = env.reset()
         cs = get_current_state(state_matrix, cameraspot)
@@ -96,19 +95,13 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             total_a_dur = total_a_dur + a_dur
             df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt, 'Action': a, 'Action type': a_type, 'Action duration': a_dur,'Reward': reward}
 
-        if (i+1) % 10 == 0:
-            new_model_path=today_model+"model_{}.pth".format(i+1)  
-            save_model(agent.model, new_model_path)
-            save_tables(df, df_actions, today_tables)
+        if i+1 % 10 == 0:
+            save_results(i, path, agent.model, df, df_actions)
 
         toc_toc = time.perf_counter()    
         ep_dur=toc_toc - tic_tic    
         df.loc[i] = {'Episode': i, 'Episode duration': ep_dur,'Number of steps': cnt, 'Total reward': total_reward}
-        print("Total reward:", total_reward)
-        print("Episode finished after {0} timesteps".format(cnt))
-        print("Episode lasted {0:.2f} seconds".format(ep_dur)) 
-        print("Avererage action duration {0:.3f} seconds".format(total_a_dur/cnt))   
-        print('____________________________________________')
+        print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
     return df, df_actions
 
 
@@ -124,14 +117,26 @@ def select_action(model, cs, action_epsilon):
     return np.random.choice(act), act_type
 
 
-def save_model(model, path):
+def _save_model(model, path):
     torch_save(model.state_dict(), path)
     
-def save_tables(table, table_actions, path):
+def _save_tables(table, table_actions, path):
     table_actions.to_csv (path+"actions.csv", sep=';', index = False, header=True)
     table.to_csv (path+"episodes.csv", sep=';', index = False, header=True)
+    
+def save_results(episode, path, model, table, table_actions):  
+    [model_path, tables_path] = path
+    model_name=model_path+"model_{}.pth".format(episode+1)    
+    _save_model(model, model_name)
+    _save_tables(table, table_actions, tables_path)
 
-
+def print_episode_info(episode, reward, timesteps, episode_dur, actions_dur):
+    print("episode No", episode)
+    print("Total reward:", reward)
+    print("Episode finished after {0} timesteps".format(timesteps))
+    print("Episode lasted {0:.2f} seconds".format(episode_dur)) 
+    print("Avererage action duration {0:.3f} seconds".format(actions_dur/timesteps))   
+    print('____________________________________________')
 
 def load_model(path):
     model = DroneQNet(2, IMG_W, IMG_H, len(actions))
@@ -157,26 +162,32 @@ def get_current_state(state_matrix, camera):
     return np.stack((state_matrix, resize_camera))
 
 
-def create_dir_win32(name):
+def _create_dir_win32(name):
      tables_dir="tables\\{}\\".format(name)
-     model_dir="models\\{}\\".format(name)
-     if not os.path.exists(tables_dir):
-         os.makedirs(tables_dir)
-     if not os.path.exists(model_dir):
-         os.makedirs(model_dir)
-         
+     model_dir="models\\{}\\".format(name)         
      return model_dir, tables_dir
  
-def create_dir_linux(name):
+def _create_dir_linux(name):
      tables_dir="tables/{}/".format(name)
      model_dir="models/{}/".format(name)
-     if not os.path.exists(tables_dir):
+         
+     return model_dir, tables_dir 
+
+def create_dir(name):
+    # Folder path define for different platforms. '\\', '/' issue
+    if platform == "linux" or platform == "linux2":
+        model_dir, tables_dir = _create_dir_linux(name)
+    elif platform == "win32":
+        model_dir, tables_dir = _create_dir_win32(name)
+    else:
+        print('unknown OS')
+        
+    if not os.path.exists(tables_dir):
          os.makedirs(tables_dir)
-     if not os.path.exists(model_dir):
+    if not os.path.exists(model_dir):
          os.makedirs(model_dir)
          
-     return model_dir, tables_dir    
-
+    return [model_dir, tables_dir]
 
 def test_trained_net(env, iterate=50, model_path="drone_model.pth"):
     model = load_model(model_path)
@@ -198,15 +209,7 @@ if __name__ == '__main__':
     
     # Create a folder to save results
     today=datetime.datetime.today().strftime("%Y-%m-%d-%H.%M")
-    
-    if platform == "linux" or platform == "linux2":
-        today_model, today_tables = create_dir_linux(today)
-    elif platform == "win32":
-        today_model, today_tables = create_dir_win32(today)
-    else:
-        print('unknown OS')
-    
-    model_path=False   
+    path=create_dir(today)
     
     # PARAMS
     # episodes, iterations, env, action_epsilon, epsilon_decrease, batch_size
@@ -218,18 +221,10 @@ if __name__ == '__main__':
     batch_s = 16
     replace_iter = 32
     iterations = 180
-    #
-    #test_trained_net(env, iterate=200, model_path="drone_model_1.pth")
     
-   
-    # Cuantos episodios correr en seguido: 
+    # How many episodes run: 
     episodes=20
-    # Cuantos veces reiniciar:   
-    change_n=1
-    # Cuantos episodios correr en total:    
-    all_episodes=episodes*(change_n+1)
     
-    table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, today_model, today_tables)    
-        #     new_map=rel_map.map_reset(maptype="Random",obstracles=True)
+    table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, path)    
         
     env.close() 
