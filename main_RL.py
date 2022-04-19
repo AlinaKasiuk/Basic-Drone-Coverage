@@ -5,6 +5,7 @@ import math
 import cv2
 from random import random
 import datetime
+import time
 import os
 from sys import platform
 
@@ -48,8 +49,8 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
     replay_memory = []
     #
     iter_counts = 0
-    df = pd.DataFrame(columns=['Episode', 'Number of steps', 'Total reward'])
-    df_actions = pd.DataFrame(columns=['Episode', 'Step', 'Action', 'Action type', 'Reward'])
+    df = pd.DataFrame(columns=['Episode', 'Episode duration', 'Number of steps', 'Total reward'])
+    df_actions = pd.DataFrame(columns=['Episode', 'Step', 'Action', 'Action type','Action duration', 'Reward'])
     for i in range(episodes):
         # env.render(show=True)
         print("episode No", i)
@@ -59,7 +60,11 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
         done = False
         cnt = 0 # number of moves in an episode
         total_reward = 0
+        tic_tic = time.perf_counter()
+        total_a_dur = 0
         while not done:
+            tic = time.perf_counter()
+            
 #            env.render(show=False )
                        #i > 990)
             cnt += 1
@@ -71,7 +76,6 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             observation, reward, done, _ = env.step(a)
             if cnt>400:
                 done = True
-            df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt, 'Action': a, 'Action type': a_type,'Reward': reward}
             total_reward += reward
             # if done and cnt < 200:
             #     reward = -1000
@@ -87,16 +91,24 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
                 if agent.train_iterations % replace_iterations == 0:
                     agent.replace_target_network()
             cs = new_state
-  
-        if (i+1) % 1000 == 0:
+            toc = time.perf_counter()
+            a_dur=toc - tic
+            total_a_dur = total_a_dur + a_dur
+            df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt, 'Action': a, 'Action type': a_type, 'Action duration': a_dur,'Reward': reward}
+
+        if (i+1) % 10 == 0:
             new_model_path=today_model+"model_{}.pth".format(i+1)  
             save_model(agent.model, new_model_path)
             save_tables(df, df_actions, today_tables)
 
-            
-        df.loc[i]={'Episode': i, 'Number of steps': cnt, 'Total reward': total_reward}
+        toc_toc = time.perf_counter()    
+        ep_dur=toc_toc - tic_tic    
+        df.loc[i] = {'Episode': i, 'Episode duration': ep_dur,'Number of steps': cnt, 'Total reward': total_reward}
         print("Total reward:", total_reward)
         print("Episode finished after {0} timesteps".format(cnt))
+        print("Episode lasted {0:.2f} seconds".format(ep_dur)) 
+        print("Avererage action duration {0:.3f} seconds".format(total_a_dur/cnt))   
+        print('____________________________________________')
     return df, df_actions
 
 
@@ -211,7 +223,7 @@ if __name__ == '__main__':
     
    
     # Cuantos episodios correr en seguido: 
-    episodes=5000
+    episodes=20
     # Cuantos veces reiniciar:   
     change_n=1
     # Cuantos episodios correr en total:    
