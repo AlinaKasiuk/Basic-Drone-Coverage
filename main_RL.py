@@ -1,4 +1,4 @@
-from torch import argmax, from_numpy, save as torch_save, load as torch_load
+from torch import argmax, from_numpy, load as torch_load
 import numpy as np
 import pandas as pd
 import math
@@ -6,13 +6,13 @@ import cv2
 from random import random
 import datetime
 import time
-import os
 from sys import platform
 
 from cnn.basic_agent import BasicAgent
 from cnn.structure import DroneQNet
 
 from constants import IMG_H, IMG_W, actions
+import output
 
 if platform == "win32":
     # Remove drone-v0 from registry
@@ -83,7 +83,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             replay_memory.append((cs, a, new_state, reward, done))
             # training the model after batch_size iterations
             if iter_counts % batch_size == 0:
-                replay_memory=replay_memory[-10000:]
+                replay_memory=replay_memory[-1000:]
                 data = np.random.permutation(np.array(replay_memory, dtype=object))[:batch_size]
                 # train_qnet(model, data)
                 agent.train(data)
@@ -95,13 +95,13 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             total_a_dur = total_a_dur + a_dur
             df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt, 'Action': a, 'Action type': a_type, 'Action duration': a_dur,'Reward': reward}
 
-        if i+1 % 1000 == 0:
-            save_results(i, path, agent.model, df, df_actions)
-
         toc_toc = time.perf_counter()    
         ep_dur=toc_toc - tic_tic    
         df.loc[i] = {'Episode': i, 'Episode duration': ep_dur,'Number of steps': cnt, 'Total reward': total_reward}
-        print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
+        if (i+1) % 10 == 0:
+            output.save_results(i, path, agent.model, df, df_actions)
+      
+        output.print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
     return df, df_actions
 
 
@@ -116,27 +116,6 @@ def select_action(model, cs, action_epsilon, device):
     act_type = 'Random'
     return np.random.choice(act), act_type
 
-
-def _save_model(model, path):
-    torch_save(model.state_dict(), path)
-    
-def _save_tables(table, table_actions, path):
-    table_actions.to_csv (path+"actions.csv", sep=';', index = False, header=True)
-    table.to_csv (path+"episodes.csv", sep=';', index = False, header=True)
-    
-def save_results(episode, path, model, table, table_actions):  
-    [model_path, tables_path] = path
-    model_name=model_path+"model_{}.pth".format(episode+1)    
-    _save_model(model, model_name)
-    _save_tables(table, table_actions, tables_path)
-
-def print_episode_info(episode, reward, timesteps, episode_dur, actions_dur):
-    print("episode No", episode)
-    print("Total reward:", reward)
-    print("Episode finished after {0} timesteps".format(timesteps))
-    print("Episode lasted {0:.2f} seconds".format(episode_dur)) 
-    print("Avererage action duration {0:.3f} seconds".format(actions_dur/timesteps))   
-    print('____________________________________________')
 
 def load_model(path):
     model = DroneQNet(2, IMG_W, IMG_H, len(actions))
@@ -162,33 +141,6 @@ def get_current_state(state_matrix, camera):
     return np.stack((state_matrix, resize_camera))
 
 
-def _create_dir_win32(name):
-     tables_dir="tables\\{}\\".format(name)
-     model_dir="models\\{}\\".format(name)         
-     return model_dir, tables_dir
- 
-def _create_dir_linux(name):
-     tables_dir="tables/{}/".format(name)
-     model_dir="models/{}/".format(name)
-         
-     return model_dir, tables_dir 
-
-def create_dir(name):
-    # Folder path define for different platforms. '\\', '/' issue
-    if platform == "linux" or platform == "linux2":
-        model_dir, tables_dir = _create_dir_linux(name)
-    elif platform == "win32":
-        model_dir, tables_dir = _create_dir_win32(name)
-    else:
-        print('unknown OS')
-        
-    if not os.path.exists(tables_dir):
-         os.makedirs(tables_dir)
-    if not os.path.exists(model_dir):
-         os.makedirs(model_dir)
-         
-    return [model_dir, tables_dir]
-
 def test_trained_net(env, iterate=50, model_path="drone_model.pth"):
     model = load_model(model_path)
 
@@ -209,7 +161,7 @@ if __name__ == '__main__':
     
     # Create a folder to save results
     today=datetime.datetime.today().strftime("%Y-%m-%d-%H.%M")
-    path=create_dir(today)
+    path=output.create_dir(today)
     
     # PARAMS
     # episodes, iterations, env, action_epsilon, epsilon_decrease, batch_size
@@ -223,8 +175,8 @@ if __name__ == '__main__':
     iterations = 180
     
     # How many episodes run: 
-    episodes=5000
+    episodes=50
     
     table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, path)    
-        
+    
     env.close() 
