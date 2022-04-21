@@ -69,7 +69,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             cnt += 1
             iter_counts += 1
             # select random action with eps probability or select action from model
-            a, a_type = select_action(agent.model, cs, action_epsilon)
+            a, a_type = select_action(agent.model, cs, action_epsilon, agent.device)
             # update epsilon value taking into account the number of iterations
             action_epsilon = update_epsilon(action_epsilon, epsilon_decrease, iter_counts)
             observation, reward, done, _ = env.step(a)
@@ -95,7 +95,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             total_a_dur = total_a_dur + a_dur
             df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt, 'Action': a, 'Action type': a_type, 'Action duration': a_dur,'Reward': reward}
 
-        if i+1 % 10 == 0:
+        if i+1 % 1000 == 0:
             save_results(i, path, agent.model, df, df_actions)
 
         toc_toc = time.perf_counter()    
@@ -105,10 +105,10 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
     return df, df_actions
 
 
-def select_action(model, cs, action_epsilon):
+def select_action(model, cs, action_epsilon, device):
     if random() > action_epsilon:
         x = from_numpy(np.stack(cs)).unsqueeze(dim=0)
-        pred = model(x)
+        pred = model(x.to(device))
         act_type = 'Model'
         position = argmax(pred, dim=1)
         return position.item(), act_type
@@ -223,7 +223,7 @@ if __name__ == '__main__':
     iterations = 180
     
     # How many episodes run: 
-    episodes=20
+    episodes=5000
     
     table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, path)    
         

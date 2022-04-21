@@ -20,9 +20,16 @@ class BasicAgent:
 
         self.gamma = 0.8
         self.train_iterations = 0
+        
+        cuda = torch.cuda.is_available()
+        self.device = 'cuda' if cuda else 'cpu'
+        
+        self.model.to(self.device)
+        self.target_model.to(self.device)
 
     def replace_target_network(self):
         self.target_model.load_state_dict(self.model.state_dict())
+        self.target_model.to(self.device)
 
     def train(self, data):
         self.optimizer.zero_grad()
@@ -35,11 +42,11 @@ class BasicAgent:
         rewards = np.array(data[:, 3], dtype=np.int)
         dones = np.array(data[:, 4], dtype=np.bool)
 
-        y_hat = self.model(model_input)[np.arange(len(data)), actions_indexes]
-        y_target = self.target_model(target_input).max(dim=1)[0]
+        y_hat = self.model(model_input.to(self.device))[np.arange(len(data)), actions_indexes]
+        y_target = self.target_model(target_input.to(self.device)).max(dim=1)[0]
 
         y_target[dones] = 0.0
-        target_q_value = torch.from_numpy(rewards) + 0.8 * y_target
+        target_q_value = torch.from_numpy(rewards).to(self.device) + 0.8 * y_target
 
         loss = self.criterion(target_q_value, y_hat)
         loss.backward()
