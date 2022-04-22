@@ -133,7 +133,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
         if (i+1) % 10 == 0:
             output.save_results(i, path, agent.model, df, df_actions, df_time)
             output.save_info_file(path[1], episodes, repmem_limit, i+1, total_dur)
-            output.print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
+        output.print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
     return df, df_actions
 
 
