@@ -42,7 +42,7 @@ def init_environment(map_file='map.csv', stations_file='bs.csv'):
 
 
 def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, 
-             epsilon_decrease, batch_size, path):
+             epsilon_decrease, batch_size, repmem_limit, path):
     tic_tic_tic = time.perf_counter()
     #    Initialization
     agent = BasicAgent(actions)
@@ -56,6 +56,9 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
     df_actions = pd.DataFrame(columns=['Episode', 'Step', 'Action', 
                                        'Action type','Action duration',
                                        'Reward'])
+    df_time = pd.DataFrame(columns=['Episode','Step','Replay memory',
+                                    'Training','Replace'])
+    
     for i in range(episodes):
         # env.render(show=True)
         # the current state is the initial state
@@ -76,25 +79,41 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
             # select random action with eps probability or select action from model
             a, a_type = select_action(agent.model, cs, action_epsilon, agent.device)
             # update epsilon value taking into account the number of iterations
-            action_epsilon = update_epsilon(action_epsilon, epsilon_decrease, iter_counts)
+#            action_epsilon = update_epsilon(action_epsilon, epsilon_decrease, iter_counts)
             observation, reward, done, _ = env.step(a)
             if cnt>400:
                 done = True
             total_reward += reward
             # if done and cnt < 200:
             #     reward = -1000
+            
+            # Getting new state
             state_matrix, _, cameraspot = observation
             new_state = get_current_state(state_matrix, cameraspot)
             replay_memory.append((cs, a, new_state, reward, done))
+               
             # training the model after batch_size iterations
-            repmem_limit=1000
             if iter_counts % batch_size == 0:
+                time1 = time.perf_counter()
                 replay_memory=replay_memory[-repmem_limit:]
                 data = np.random.permutation(np.array(replay_memory, dtype=object))[:batch_size]
+                time2 = time.perf_counter()
                 # train_qnet(model, data)
                 agent.train(data)
+                time3 = time.perf_counter()
                 if agent.train_iterations % replace_iterations == 0:
                     agent.replace_target_network()
+                time4 = time.perf_counter()
+                
+                repmem_time = time2 - time1
+                training_time = time3 - time2
+                replace_time = time4 - time3
+                df_time.loc[iter_counts/batch_size] = {'Episode': i, 
+                                                          'Step': cnt,                                              
+                                                          'Replay memory': repmem_time,
+                                                          'Training': training_time,
+                                                          'Replace': replace_time}
+                
             cs = new_state
             toc = time.perf_counter()
             a_dur=toc - tic
@@ -112,7 +131,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
                      'Number of steps': cnt, 'Total reward': total_reward}
         
         if (i+1) % 10 == 0:
-            output.save_results(i, path, agent.model, df, df_actions)
+            output.save_results(i, path, agent.model, df, df_actions, df_time)
             output.save_info_file(path[1], episodes, repmem_limit, i+1, total_dur)
             output.print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
     return df, df_actions
@@ -183,13 +202,16 @@ if __name__ == '__main__':
     env = init_environment(map_file=m_file)
     action_eps = 0.6
 
-    batch_s = 16
+    batch_size = 16
     replace_iter = 32
+    replay_memory_size=1000
     iterations = 180
-    
+    epsilon_decrease = 0
     # How many episodes run: 
     episodes=50
     
-    table, table_actions = train_RL(episodes, iterations, replace_iter, env, action_eps, 0.01, batch_s, path)    
+    table, table_actions = train_RL(episodes, iterations, replace_iter, env,
+                                    action_eps, epsilon_decrease, batch_size,
+                                    replay_memory_size, path)    
     
     env.close() 
