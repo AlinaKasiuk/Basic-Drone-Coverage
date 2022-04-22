@@ -16,18 +16,18 @@ def create_dir(name):
     
     # Folder path define for different platforms. '\\', '/' issue
     if platform == "linux" or platform == "linux2":
-        model_dir, tables_dir = _create_dir_linux(name)
+        model_dir, directory = _create_dir_linux(name)
     elif platform == "win32":
-        model_dir, tables_dir = _create_dir_win32(name)
+        model_dir, directory = _create_dir_win32(name)
     else:
         print('unknown OS')
         
-    if not os.path.exists(tables_dir):
-         os.makedirs(tables_dir)
+    if not os.path.exists(directory):
+         os.makedirs(directory)
     if not os.path.exists(model_dir):
          os.makedirs(model_dir)
          
-    return [model_dir, tables_dir]
+    return [model_dir, directory]
     
 def save_results(episode, path, model, table, table_actions):  
     "Saving the model and csv with training parameters"
@@ -45,26 +45,29 @@ def print_episode_info(episode, reward, timesteps, episode_dur, actions_dur):
     print("Avererage action duration {0:.3f} seconds".format(actions_dur/timesteps))   
     print('____________________________________________')
     
-def write_info_file(episodes, repmem_limit, stoped=False):
+def save_info_file(path, episodes, repmem_limit, last_episode, time, stoped=False):
     lines = ['Total number of episodes: {}'.format(episodes),
-             'Replay memory limit: {}'.format(repmem_limit)]
+             'Replay memory limit: {}'.format(repmem_limit),
+             'Last save after {} episodes'.format(last_episode),
+             'Total run time: {}'.format(time),
+             ]
     if stoped:
         lines.append('Stoped after {} episodes'.format(stoped))
         
-    with open('info.txt', 'w') as f:
+    with open(path+'info.txt', 'w') as f:
         for line in lines:
             f.write(line)
             f.write('\n')
 
 def _create_dir_win32(name):
-     tables_dir="tables\\{}\\".format(name)
-     model_dir="models\\{}\\".format(name)         
-     return model_dir, tables_dir
+     directory="results\\{}\\".format(name)
+     model_dir="results\\{}\\models\\".format(name)         
+     return model_dir, directory
  
 def _create_dir_linux(name):
-     tables_dir="tables/{}/".format(name)
-     model_dir="models/{}/".format(name)
-     return model_dir, tables_dir 
+     directory="{}/".format(name)
+     model_dir="{}/models/".format(name)
+     return model_dir, directory 
 
 def _save_model(model, path):
     torch_save(model.state_dict(), path)

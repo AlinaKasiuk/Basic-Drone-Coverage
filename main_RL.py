@@ -41,7 +41,9 @@ def init_environment(map_file='map.csv', stations_file='bs.csv'):
     return env
 
 
-def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsilon_decrease, batch_size, path):
+def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, 
+             epsilon_decrease, batch_size, path):
+    tic_tic_tic = time.perf_counter()
     #    Initialization
     agent = BasicAgent(actions)
     
@@ -49,8 +51,11 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
     replay_memory = []
     #
     iter_counts = 0
-    df = pd.DataFrame(columns=['Episode', 'Episode duration', 'Number of steps', 'Total reward'])
-    df_actions = pd.DataFrame(columns=['Episode', 'Step', 'Action', 'Action type','Action duration', 'Reward'])
+    df = pd.DataFrame(columns=['Episode', 'Episode duration', 
+                               'Number of steps', 'Total reward'])
+    df_actions = pd.DataFrame(columns=['Episode', 'Step', 'Action', 
+                                       'Action type','Action duration',
+                                       'Reward'])
     for i in range(episodes):
         # env.render(show=True)
         # the current state is the initial state
@@ -82,8 +87,9 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             new_state = get_current_state(state_matrix, cameraspot)
             replay_memory.append((cs, a, new_state, reward, done))
             # training the model after batch_size iterations
+            repmem_limit=1000
             if iter_counts % batch_size == 0:
-                replay_memory=replay_memory[-1000:]
+                replay_memory=replay_memory[-repmem_limit:]
                 data = np.random.permutation(np.array(replay_memory, dtype=object))[:batch_size]
                 # train_qnet(model, data)
                 agent.train(data)
@@ -93,15 +99,22 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, epsi
             toc = time.perf_counter()
             a_dur=toc - tic
             total_a_dur = total_a_dur + a_dur
-            df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt, 'Action': a, 'Action type': a_type, 'Action duration': a_dur,'Reward': reward}
+            df_actions.loc[iter_counts] = {'Episode': i, 'Step': cnt,
+                                           'Action': a, 'Action type': a_type,
+                                           'Action duration': a_dur,
+                                           'Reward': reward}
 
         toc_toc = time.perf_counter()    
-        ep_dur=toc_toc - tic_tic    
-        df.loc[i] = {'Episode': i, 'Episode duration': ep_dur,'Number of steps': cnt, 'Total reward': total_reward}
+        ep_dur = toc_toc - tic_tic 
+        total_dur = toc_toc - tic_tic_tic
+        
+        df.loc[i] = {'Episode': i, 'Episode duration': ep_dur,
+                     'Number of steps': cnt, 'Total reward': total_reward}
+        
         if (i+1) % 10 == 0:
             output.save_results(i, path, agent.model, df, df_actions)
-      
-        output.print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
+            output.save_info_file(path[1], episodes, repmem_limit, i+1, total_dur)
+            output.print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
     return df, df_actions
 
 
