@@ -29,13 +29,13 @@ def create_dir(name):
          
     return [model_dir, directory]
     
-def save_results(episode, path, model, table, table_actions, table_time):  
+def save_results(episode, path, model, table):  
     "Saving the model and csv with training parameters"
     
     [model_path, tables_path] = path
     model_name=model_path+"model_{}.pth".format(episode+1)    
     _save_model(model, model_name)
-    _save_tables(table, table_actions, table_time, tables_path)
+    _save_tables(table, tables_path)
 
 def print_episode_info(episode, reward, timesteps, episode_dur, actions_dur):
     print("episode No", episode)
@@ -65,16 +65,14 @@ def _create_dir_win32(name):
      return model_dir, directory
  
 def _create_dir_linux(name):
-     directory="{}/".format(name)
-     model_dir="{}/models/".format(name)
+     directory="results/{}/".format(name)
+     model_dir="results/{}/models/".format(name)
      return model_dir, directory 
 
 def _save_model(model, path):
     torch_save(model.state_dict(), path)
     
-def _save_tables(table, table_actions, table_time, path):
-    table_actions.to_csv (path+"actions.csv", sep=';', index = False, header=True)
+def _save_tables(table, path):
     table.to_csv (path+"episodes.csv", sep=';', index = False, header=True)
-    table_time.to_csv (path+"training_times.csv", sep=';', index = False, header=True)    
     
 
