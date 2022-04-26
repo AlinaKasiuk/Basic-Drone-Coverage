@@ -2,8 +2,10 @@
 
 ### Description:
 A camera-equipped UAV can fly over the environment to be monitored to optimize the visual coverage of high-relevance areas. 
-        
-The drone starts ****, and the goal is to adopt a patrolling strategy to opimize the PARTIAL coverage throught time.
+
+The power is limited and the drone starts at a base station (BS) full of power, and it is allowed to travel a fixed amount of moves. 
+We use Deep Reinforcement Learning to adopt a patrolling strategy to opimize the PARTIAL coverage throught time and guarantee that the drone returns to the base station for recharge and to prevent the falling down.
+
 
 ### Observation:
      
@@ -37,7 +39,11 @@ Num  |  Action
 
 ### Reward:
 
-A matrix value   
+Agent’s utility is deﬁned by the reward function.
+As the drone can fly in two modes (exploration and looking for recharge) the reward function can be decomposed into two parts.  
+The first part calculates from the values incuded in the FOV (field of view) of the camera taking into account camera caracteristics.
+The second part is a function of the distance to the base.
+The expected reward should be maximized. 
 
 
 ### Starting State:
