@@ -43,7 +43,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
              epsilon_decrease, batch_size, repmem_limit, path):
     tic_tic_tic = time.perf_counter()
     #    Initialization
-    agent = BasicAgent(actions)
+    agent = BasicAgent(actions, log_step=1)
     
    # agent.model = load_model("drone_model_2.pth")
     replay_memory = []

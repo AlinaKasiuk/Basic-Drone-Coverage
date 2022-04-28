@@ -1,7 +1,10 @@
+import os
+
 import torch
 from torch.optim import Adam
 from torch.nn import SmoothL1Loss
 import numpy as np
+import matplotlib.pyplot as plt
 
 from cnn.structure import DroneQNet
 from constants import IMG_H, IMG_W
@@ -9,11 +12,12 @@ from constants import IMG_H, IMG_W
 
 class BasicAgent:
 
-    def __init__(self, actions):
+    def __init__(self, actions, log_step=500, n_rows=5):
         self.model = DroneQNet(2, IMG_W, IMG_H, len(actions))
         self.model.double()
         self.target_model = DroneQNet(2, IMG_W, IMG_H, len(actions))
         self.target_model.double()
+        self.actions = actions
 
         self.criterion = SmoothL1Loss()
         self.optimizer = Adam(self.model.parameters(), lr=0.001)
@@ -26,6 +30,12 @@ class BasicAgent:
         
         self.model.to(self.device)
         self.target_model.to(self.device)
+
+        self.log_step = log_step
+        self.n_rows = n_rows
+        self.log_folder = 'logs'
+        if not os.path.exists(self.log_folder):
+            os.mkdir(self.log_folder)
 
     def replace_target_network(self):
         self.target_model.load_state_dict(self.model.state_dict())
@@ -53,3 +63,24 @@ class BasicAgent:
         self.optimizer.step()
 
         self.train_iterations += 1
+
+        if self.train_iterations % self.log_step == 0:
+            ndata = np.hstack([data, y_hat.view(-1, 1).cpu().detach().numpy(),
+                               target_q_value.view(-1, 1).cpu().detach().numpy()])
+            n_rows = min(self.n_rows, len(ndata))
+            _, axes = plt.subplots(nrows=n_rows, ncols=3)
+
+            ndata = np.random.permutation(ndata)[:n_rows]
+            for i, d in enumerate(ndata):
+                current_state = d[0]
+                cs = np.concatenate((current_state[0], current_state[1]), axis=1)
+                next_state = d[0]
+                ns = np.concatenate((next_state[0], next_state[1]), axis=1)
+
+                axes[i, 0].imshow(cs)
+                # axes[i, 1].text(16, 32, str((self.actions[d[1]], d[3], d[-1], d[-2])))
+                axes[i, 1].set_title(str((self.actions[d[1]], d[3], d[-1], d[-2])))
+                axes[i, 2].imshow(ns)
+            for ax in axes.ravel():
+                ax.axis('off')
+            plt.savefig(os.path.join(self.log_folder, "log_{0}.png".format(self.train_iterations)))
