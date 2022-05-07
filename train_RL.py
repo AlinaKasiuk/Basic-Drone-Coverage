@@ -51,7 +51,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
     os.makedirs(exp_f, exist_ok=True)
     writer = SummaryWriter(log_dir=exp_f)
     #    Initialization
-    agent = BasicAgent(actions, log_step=1, sw=writer)
+    agent = BasicAgent(actions, log_step=100, sw=writer)
     
     # agent.model = load_model("drone_model_2.pth")
     replay_memory = []

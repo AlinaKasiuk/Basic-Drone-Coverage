@@ -68,7 +68,7 @@ class BasicAgent:
         self.train_iterations += 1
 
         if self.writer is not None:
-            self.writer.add_scalar('loss', loss.item())
+            self.writer.add_scalar('loss', loss.item(), self.train_iterations)
 
         if self.train_iterations % self.log_step == 0 and self.writer is not None:
             ndata = np.hstack([data, y_hat.view(-1, 1).cpu().detach().numpy(),
@@ -97,3 +97,4 @@ class BasicAgent:
             # for ax in axes.ravel():
                 # ax.axis('off')
             plt.savefig(os.path.join(self.log_folder, "log_{0}.png".format(self.train_iterations)))
+            plt.close()
