@@ -1,4 +1,8 @@
+import os
+
 from torch import argmax, from_numpy
+from torch.utils.tensorboard import SummaryWriter
+
 import numpy as np
 import pandas as pd
 import cv2
@@ -18,7 +22,6 @@ if platform == "win32":
     drone_remove
     
 from gym_drone.envs.drone_env import DroneEnv
-
 
 
 def init_environment(map_file='map.csv', stations_file='bs.csv'):
@@ -42,23 +45,28 @@ def init_environment(map_file='map.csv', stations_file='bs.csv'):
 def train_RL(episodes, iterations, replace_iterations, env, action_epsilon, 
              epsilon_decrease, batch_size, repmem_limit, path):
     tic_tic_tic = time.perf_counter()
+
+    log_dir = 'runs'
+    exp_f = os.path.join(log_dir, "exp{0}".format(get_exp_number(log_dir)))
+    os.makedirs(exp_f, exist_ok=True)
+    writer = SummaryWriter(log_dir=exp_f)
     #    Initialization
-    agent = BasicAgent(actions, log_step=1)
+    agent = BasicAgent(actions, log_step=1, sw=writer)
     
-   # agent.model = load_model("drone_model_2.pth")
+    # agent.model = load_model("drone_model_2.pth")
     replay_memory = []
     #
     iter_counts = 0
     df = pd.DataFrame(columns=['Episode', 'Episode duration', 
                                'Number of steps', 'Total reward'])
-    
+
     for i in range(episodes):
         # env.render(show=True)
         # the current state is the initial state
         state_matrix, cameraspot = env.reset()
         cs = get_current_state(state_matrix, cameraspot)
         done = False
-        cnt = 0 # number of moves in an episode
+        cnt = 0     # number of moves in an episode
         total_reward = 0
         tic_tic = time.perf_counter()
         total_a_dur = 0
@@ -96,7 +104,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
                 
             cs = new_state
             toc = time.perf_counter()
-            a_dur=toc - tic
+            a_dur = toc - tic
             total_a_dur = total_a_dur + a_dur
 
         toc_toc = time.perf_counter()    
@@ -105,12 +113,18 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
         
         df.loc[i] = {'Episode': i, 'Episode duration': ep_dur,
                      'Number of steps': cnt, 'Total reward': total_reward}
+        writer.add_scalar('episode duration', ep_dur, i)
+        writer.add_scalar('number of steps', cnt, i)
+        writer.add_scalar('total reward', total_reward, i)
         
-        if (i+1) % 10 == 0:
-            output.save_results(i, path, agent.model, df)
-            output.save_info_file(path[1], episodes, repmem_limit, i+1, total_dur)
+        # if (i+1) % 10 == 0:
+        #     output.save_results(i, path, agent.model, df)
+        #     output.save_info_file(path[1], episodes, repmem_limit, i+1, total_dur)
         output.print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
+
+    writer.close()
     return df
+
 
 def select_action(model, cs, action_epsilon, device):
     if random() > action_epsilon:
@@ -123,16 +137,23 @@ def select_action(model, cs, action_epsilon, device):
     act_type = 'Random'
     return np.random.choice(act), act_type
 
+
 def get_current_state(state_matrix, camera):
-    state_matrix = cv2.resize(state_matrix, (32, 32)) / 100
+    state_matrix = cv2.resize(state_matrix, (32, 32)) / 255
     resize_camera = cv2.resize(env.get_part_relmap_by_camera(camera), state_matrix.shape)
     return np.stack((state_matrix, resize_camera))
+
+
+def get_exp_number(folder='runs'):
+    ns = [int(f[3:]) for f in os.listdir(folder) if f.startswith('exp') and str.isdigit(f[3:])]
+    return 1 + (max(ns) if len(ns) else 0)
+
 
 if __name__ == '__main__':
     
     # Create a folder to save results
-    today=datetime.datetime.today().strftime("%Y-%m-%d-%H.%M")
-    path=output.create_dir(today)
+    today = datetime.datetime.today().strftime("%Y-%m-%d-%H.%M")
+    path = output.create_dir(today)
     
     # PARAMS
     # episodes, iterations, env, action_epsilon, epsilon_decrease, batch_size
@@ -143,11 +164,11 @@ if __name__ == '__main__':
 
     batch_size = 16
     replace_iter = 32
-    replay_memory_size=1000
+    replay_memory_size = 1000
     iterations = 400
     epsilon_decrease = 0
     # How many episodes run: 
-    episodes=50
+    episodes = 20000
     
     table = train_RL(episodes, iterations, replace_iter, env,
                      action_eps, epsilon_decrease, batch_size,

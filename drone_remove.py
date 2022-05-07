@@ -1,6 +1,7 @@
 import gym
 
-env_dict = gym.envs.registration.registry.env_specs.copy()
+# env_dict = gym.envs.registration.registry.env_specs.copy()
+env_dict = gym.envs.registration.registry.env_specs
 for env in env_dict:
     if 'drone-v0' in env:
         print("Remove {} from registry".format(env))

@@ -168,7 +168,7 @@ def update_epsilon(action_epsilon, epsilon_decrease, iter_counts):
 
 
 def get_current_state(state_matrix, camera):
-    state_matrix = cv2.resize(state_matrix, (32, 32)) / 100
+    state_matrix = cv2.resize(state_matrix, (32, 32)) / 255
     resize_camera = cv2.resize(env.get_part_relmap_by_camera(camera), state_matrix.shape)
     return np.stack((state_matrix, resize_camera))
 

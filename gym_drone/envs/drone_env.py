@@ -303,8 +303,7 @@ class DroneEnv(gym.Env):
         # out of boundaries
         if x_min < 0 or y_min < 0 or x_max >= self.relevance_map.shape[0] or y_max >= self.relevance_map.shape[1]:
             return np.array([[-100.0]])
-        return np.array(self.relevance_map[x_min:x_max, y_min:y_max], dtype=np.float)
-    
+        return np.array(self.relevance_map[x_min:x_max, y_min:y_max], dtype='float')
 
     def _get_cameraspot(self):
         "Calculating the field of view (FOV), the state in matrix format"
