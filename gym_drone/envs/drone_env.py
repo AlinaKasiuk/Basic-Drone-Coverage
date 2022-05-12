@@ -1,6 +1,9 @@
 import gym
+import logging
+import math
 import numpy as np
-from gym import spaces
+import cv2
+from gym import error, spaces, utils
 from gym.utils import seeding
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -18,6 +21,10 @@ class DroneEnv(gym.Env):
         
         The drone starts ****, and the goal is to adopt a patrolling strategy
         to opimize the PARTIAL coverage throught time.
+
+    Source:
+        This environment corresponds to the version of the drone patrolling
+        problem described by Piciarelli and Foresti
 
     Observation:
      current x-pos, current y-pos, current z-pos,
@@ -62,7 +69,7 @@ class DroneEnv(gym.Env):
 
     Episode Termination:
     ***
-        Episode length is defined.
+        Episode length is greater than 200.
     """
     
     
@@ -85,20 +92,14 @@ class DroneEnv(gym.Env):
         self.y_max = int(31)
         self.z_min = int(0)
         self.z_max = int(5)
-        
-        # k quality coeficient
-        # TODO: define k with a formula
         self.k = {0: 0.5, 1: 1, 2: .875, 3: .75, 4:.625, 5: 0.5}
-        
-        # battery limits
         self.min_battery = 0
         self.max_battery = 200
-        
-        # One step size     
+        self.cam_angle = 0.25*math.pi
+     
         self.delta_pos = 1
         self.delta_battery = 1
-
-        # Initial values        
+        
         self.state = None   #initiate state holder
         self.cameraspot=None
         
@@ -117,7 +118,7 @@ class DroneEnv(gym.Env):
         """    
     
         # TODO: check observation_space. Battery - ?
-        # May be it should be changed after changing the map
+        # Muy be it should be changed after changing the map
         
         # Here, low is the lower limit of observation range, and high is the higher limit.
         
@@ -131,100 +132,209 @@ class DroneEnv(gym.Env):
     
         self.action_space = spaces.Discrete(10) 
     
-        # Relevance map
         # TODO: Is it needed to define the default relevance map?
-        self.relevance_map = None
-        self.initial_rm = None
         
-        # Visualization
+        self.relevance_map =   [[0,0,1,0,0],
+                                [0,1,1,1,0],
+                                [1,1,1,1,1],
+                                [0,1,1,1,0],
+                                [0,0,1,0,0]]
+        self.initial_rm = None
         self.seed()
         self.viewer = None
-        
         self.state = None
         self.state_matrix = None
+    
+        self.steps_beyond_done = None
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
+    def _get_cameraspot(self):
+        
+        x, y, z, battery = self.state
+        c=z # *math.tan(self.cam_angle))
+
+        x_cam_min = x-c
+        x_cam_max = x+c
+             
+        y_cam_min = y-c
+        y_cam_max = y+c
+
+        p1=[x_cam_min,y_cam_max]
+        p2=[x_cam_min,y_cam_min]
+        p3=[x_cam_max,y_cam_min]
+        p4=[x_cam_max,y_cam_max]
+                
+        tmp_cameraspot=[p1,p2,p3,p4]
+
+        ncol=self.x_max+1
+        nrow=self.y_max+1
+        
+        cam_matrix =np.zeros((ncol,nrow))
+        cam_matrix[x_cam_min:x_cam_max+1,y_cam_min:y_cam_max+1]=battery
+
+        self.state_matrix = cam_matrix
+                
+        return tmp_cameraspot
+
+    def get_part_relmap_by_camera(self, camera_spot):
+        camera_spot = np.array(camera_spot)
+        x_min = camera_spot[:, 0].min()
+        x_max = camera_spot[:, 0].max() + 1
+
+        y_min = camera_spot[:, 1].min()
+        y_max = camera_spot[:, 1].max() + 1
+
+        # out of boundaries
+        if x_min < 0 or y_min < 0 or x_max >= self.relevance_map.shape[0] or y_max >= self.relevance_map.shape[1]:
+            return np.array([[-1.0]])
+        return np.array(self.relevance_map[x_min:x_max, y_min:y_max], dtype=np.float)
+
+    def zero_rel_map(self, camera_spot):
+        camera_spot = np.array(camera_spot)
+        x_min = camera_spot[:, 0].min()
+        x_max = camera_spot[:, 0].max() + 1
+
+        y_min = camera_spot[:, 1].min()
+        y_max = camera_spot[:, 1].max() + 1
+
+        if x_min >= 0 and y_min >= 0:
+            self.relevance_map[x_min:x_max, y_min:y_max] = 0
+
+    def step(self, action):
+        
+        err_msg = "%r (%s) invalid" % (action, type(action))
+        assert self.action_space.contains(action), err_msg    
+    
+        x, y, z, battery = self.state
+        current_camera_spot = self._get_cameraspot()
+
+        done = bool(
+            x < self.x_min
+            or x > self.x_max+2
+            or y < self.y_min-2
+            or y > self.y_max+2
+            or z < self.z_min-2
+            or z > self.z_max+2
+            or battery<-100
+            )
+
+        battery -= self.delta_battery
+        
+        if action == 0:
+            y += self.delta_pos   # Forward
+        elif action == 1:
+            y -= self.delta_pos   # Backward
+        elif action==2:
+            x-=self.delta_pos   # Left          
+        elif action==3:
+            x+=self.delta_pos   # Right   
+        elif action==4:
+            z+=self.delta_pos   # Up   
+        elif action==5:
+            z-=self.delta_pos   # Down   
+        elif action==6:
+            y+=self.delta_pos   # Forward            
+            x-=self.delta_pos   # Left             
+        elif action==7:
+            y+=self.delta_pos   # Forward            
+            x+=self.delta_pos   # Left  
+        elif action==8:
+            y-=self.delta_pos   # Backward             
+            x-=self.delta_pos   # Left             
+        elif action==9:
+            y-=self.delta_pos   # Backward           
+            x+=self.delta_pos   # Right        
+            
+        if x==self.base_x and y==self.base_y:
+            battery=100
+
+        old_state = self.state
+        self.state = (x, y, z, battery)
+        self.cameraspot = self._get_cameraspot()
+        self.observation = self.state_matrix, self.state, self.cameraspot
+
+        r = self.get_reward(old_state, self.state, current_camera_spot, self.cameraspot)
+        # zeroing the observed values
+        self.zero_rel_map(current_camera_spot)
+        return self.observation, r, done, {}
+
+    def get_reward(self, state, new_state, current_camera_spot, new_cs):
+        x, y, z, battery = state
+        dist = self.get_distance(new_state)
+
+        n_r = self.get_part_relmap_by_camera(new_cs).sum()
+        if n_r < 0:
+          #  print("EL nuevo estado esta fuera")
+          #  self.relevance_map = np.array(self.initial_rm)
+            return -100
+        _, _, new_z, _ = new_state
+        if new_z not in self.k:
+         #   self.relevance_map = np.array(self.initial_rm)
+          #  print("Altura no apropiada")
+            return -100
+
+        p = battery - dist < 0
+        if p:
+            #print("Too far from base station {0}".format(self.get_distance(state) - dist))
+            return 60 * (self.get_distance(state) - dist)
+        else:
+            c_r = self.get_part_relmap_by_camera(current_camera_spot).sum()
+            return self.k[new_z] * (n_r - c_r)
+
+    def get_distance(self, state):
+        min_dist = len(self.relevance_map)
+        x, y, _, _ = state
+        for bx, by in zip(self.base_x, self.base_y):
+            dif_x = abs(x - bx)
+            dif_y = abs(y - by)
+
+            dist = max(dif_x, dif_y)
+            if dist < min_dist:
+                min_dist = dist
+        return min_dist
+
     def get_map(self,rel_map):
-        "Importing the relevance map to the enviroment"        
-        self.relevance_map = np.array(rel_map)    # NumPy array
-        self.initial_rm = np.array(rel_map)   # The initial map doesn't change every step
-        ncol, nrow = rel_map.shape  # Map size
-        self.x_max = ncol-1
-        self.y_max = nrow-1
+        self.relevance_map=rel_map
+        self.initial_rm = np.array(rel_map)
+        ncol, nrow = rel_map.shape
+        self.x_max=ncol-1
+        self.y_max=nrow-1
         
     def get_bases(self,bs):
-        " Importing the base stations map to the environment "  
-        self.base_stations = bs     # NumPy array
+        self.base_stations=bs
         ncol, nrow = bs.shape
-        
-        # Getting a list of base station coordinates:
         x=[]
-        y=[] 
+        y=[]
         for i in range(0,ncol-1):
             for j in range(0,nrow-1):
                 if bs[i][j]==100:
                     x.append(i)
                     y.append(j)
+                    #k+=1
         self.base_x=np.array(x)
         self.base_y=np.array(y)
         Coord=np.array([self.base_x,self.base_y])
         self.base_coord=Coord.T
         
-        return self.base_coord 
-    
+        return self.base_coord
+
     def reset(self):
-        "Reseting the enviroment: initial map, start position"
-        
-        # get_map(_) and get_bases(_) methods should be previously done:
-        self._check_map() # check if the map is correctly downloaded
-        self._check_bases() # check if the bases are correctly downloaded   
-        
-        # Start from one of the base stations:
         m,n = self.base_coord.shape
         i = np.random.randint(0, m-1) if m > 1 else 0
         x,y=self.base_coord[i]
         
-        # The initial state:
         self.state = [x, y, 1, 100]
+
+        #self.np_random.randint(low=10, high=15, size=(4,))
         self.cameraspot = self._get_cameraspot()
         
-        # Define the initial relevance map
+        self.steps_beyond_done = None
         self.relevance_map = np.array(self.initial_rm)
-            
-        return self.state_matrix,  np.array(self.cameraspot)   
-    
-    def step(self, action):
-        "One state-action step"
-        
-        # Check if the selected action is in the set of actions: 
-        err_msg = "%r (%s) invalid" % (action, type(action))
-        assert self.action_space.contains(action), err_msg    
-    
-        # Saving the previous state:
-        old_state = self.state        
-        old_camera_spot = self._get_cameraspot()
+        return self.state_matrix,  np.array(self.cameraspot)
 
-        # Actualize the state with a new action
-        new_state = self._take_action(action)
-        new_cameraspot = self._get_cameraspot()
-        
-        # Check if the agent inside the map limits and it has some battery
-        done = self._check_limits()
-        
-        # Observation tuple for output:
-        self.observation = self.state_matrix, self.state, self.cameraspot
-        
-        # Calculating the reward funcion:
-        reward = self._get_reward(old_state, new_state, old_camera_spot, new_cameraspot)
-        
-        # Zeroing the observed values:
-        self._zero_rel_map(old_camera_spot)
-        
-        return self.observation, reward, done, {}  
-    
     def render(self, mode='human', show=True):
         if not self.state:
             return
@@ -256,7 +366,7 @@ class DroneEnv(gym.Env):
             drone.add_attr(self.drone_trans)
             self.map_trans.set_translation(screen_width/2, screen_height/2)
 
-            map_image = self._get_map_image()
+            map_image = self.get_map_image()
             map_img = rendering.Image(map_image, screen_width, screen_height)
             map_img.add_attr(self.map_trans)
             self.viewer.add_geom(map_img)
@@ -268,7 +378,7 @@ class DroneEnv(gym.Env):
             self.viewer.add_geom(self.axle)
 
         if self.viewer is not None and show:
-            map_image = self._get_map_image()
+            map_image = self.get_map_image()
             map_img = rendering.Image(map_image, screen_width, screen_height)
             map_img.add_attr(self.map_trans)
             self.viewer.geoms[0] = map_img
@@ -281,161 +391,13 @@ class DroneEnv(gym.Env):
         self.drone_trans.set_translation(dronex, droney)
         self.drone_trans.set_scale(dronez/50, dronez/50)
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
-    
+
     def close(self):
         if self.viewer:
             self.viewer.close()
             self.viewer = None
-    
-    def get_coverage_rate(self):
-        "Part of the map already covered in percents"
-        coverage_rate=100-self.relevance_map.sum()*100/512
-        return coverage_rate            
-    
-    def get_part_relmap_by_camera(self, camera_spot):
-        camera_spot = np.array(camera_spot)
-        x_min = camera_spot[:, 0].min()
-        x_max = camera_spot[:, 0].max() + 1
 
-        y_min = camera_spot[:, 1].min()
-        y_max = camera_spot[:, 1].max() + 1
-
-        # out of boundaries
-        if x_min < 0 or y_min < 0 or x_max >= self.relevance_map.shape[0] or y_max >= self.relevance_map.shape[1]:
-            return np.array([[-100.0]])
-        return np.array(self.relevance_map[x_min:x_max, y_min:y_max], dtype='float')
-
-    def _get_cameraspot(self):
-        "Calculating the field of view (FOV), the state in matrix format"
-        
-        x, y, z, battery = self.state
-        c=z 
-
-        x_cam_min = x-c
-        x_cam_max = x+c
-             
-        y_cam_min = y-c
-        y_cam_max = y+c
-
-        # the coordinates of angles of FOV:
-        p1=[x_cam_min,y_cam_max]
-        p2=[x_cam_min,y_cam_min]
-        p3=[x_cam_max,y_cam_min]
-        p4=[x_cam_max,y_cam_max]
-        tmp_cameraspot=[p1,p2,p3,p4] 
-
-        ncol=self.x_max+1
-        nrow=self.y_max+1
-        
-        # State to matrix:
-        cam_matrix =np.zeros((ncol,nrow))
-        cam_matrix[x_cam_min:x_cam_max+1,y_cam_min:y_cam_max+1]=battery
-        self.state_matrix = cam_matrix
-                
-        return tmp_cameraspot
-
-    def _get_distance(self, state):
-        "Calculating the shortest distance from the current state to the base"
-        min_dist = len(self.relevance_map)
-        x, y, _, _ = state
-        for bx, by in zip(self.base_x, self.base_y):
-            dif_x = abs(x - bx)
-            dif_y = abs(y - by)
-
-            dist = max(dif_x, dif_y)
-            if dist < min_dist:
-                min_dist = dist
-        return min_dist
-    
-    def _get_reward(self, old_state, new_state, old_camera_spot, new_camera_spot):
-        "The reward formula implementation"
-        
-        x, y, z, battery = old_state
-        dist = self._get_distance(new_state)        
-        n_r = self.get_part_relmap_by_camera(new_camera_spot).sum()
-        
-       # if n_r < 0:
-          #  print("EL nuevo estado esta fuera")
-          #  self.relevance_map = np.array(self.initial_rm)
-        #    return -100
-        _, _, new_z, _ = new_state
-        if new_z not in self.k:
-         #   self.relevance_map = np.array(self.initial_rm)
-          #  print("Altura no apropiada")
-            return -100
-
-        p = battery - dist < 0
-        if p:
-            #print("Too far from base station {0}".format(self._get_distance(old_state) - dist))
-            return 60 * (self._get_distance(old_state) - dist)
-        else:
-            c_r = self.get_part_relmap_by_camera(old_camera_spot).sum()
-            reward = self.k[new_z] * (n_r - c_r)
-            return reward
-
-
-    def _zero_rel_map(self, camera_spot):
-        camera_spot = np.array(camera_spot)
-        x_min = camera_spot[:, 0].min()
-        x_max = camera_spot[:, 0].max() + 1
-
-        y_min = camera_spot[:, 1].min()
-        y_max = camera_spot[:, 1].max() + 1
-
-        if x_min >= 0 and y_min >= 0:
-            self.relevance_map[x_min:x_max, y_min:y_max] -= 1
-
-    def _take_action(self, action):
-        x, y, z, battery = self.state
-        
-        battery -= self.delta_battery
-        
-        if action == 0:
-            y += self.delta_pos   # Forward
-        elif action == 1:
-            y -= self.delta_pos   # Backward
-        elif action==2:
-            x-=self.delta_pos   # Left          
-        elif action==3:
-            x+=self.delta_pos   # Right   
-        elif action==4:
-            z+=self.delta_pos   # Up   
-        elif action==5:
-            z-=self.delta_pos   # Down   
-        elif action==6:
-            y+=self.delta_pos   # Forward            
-            x-=self.delta_pos   # Left             
-        elif action==7:
-            y+=self.delta_pos   # Forward            
-            x+=self.delta_pos   # Left  
-        elif action==8:
-            y-=self.delta_pos   # Backward             
-            x-=self.delta_pos   # Left             
-        elif action==9:
-            y-=self.delta_pos   # Backward           
-            x+=self.delta_pos   # Right        
-            
-        if x==self.base_x and y==self.base_y:
-            battery=100
-            
-        self.state = x, y, z, battery
-        return self.state
-
-    def _check_limits(self):
-        x, y, z, battery = self.state        
-        inside = bool(
-            x < self.x_min
-            or x > self.x_max+2
-            or y < self.y_min-2
-            or y > self.y_max+2
-            or z < self.z_min-2
-            or z > self.z_max+2
-            or battery<-50
-            )  
-        return inside
-    
-
-    def _get_map_image(self):
+    def get_map_image(self):
         # make a color map of fixed colors
         cmap = colors.ListedColormap(['blue', 'green', 'red'])
         bounds = [0, 1, 3, 5]
@@ -457,27 +419,3 @@ class DroneEnv(gym.Env):
         plt.close(fig)
 
         return map_image
-
-    def _check_map(self):
-        rel_map=self.initial_rm
-        if not('numpy.ndarray' in str(type(rel_map))):
-            raise TypeError("The relevance map is not defined correctly. It should be numpy.array")
-        
-        ncol, nrow = rel_map.shape
-        
-        if (ncol<10) or (ncol<10):
-            raise ValueError("The relevance map is too small. The min size is 10x10")
-          
-    def _check_bases(self):
-        rel_map=self.initial_rm
-        bs=self.base_stations
-        
-        if not('numpy.ndarray' in str(type(bs))):
-            raise TypeError("The base station map is not defined correctly. It should be numpy.array")
-        
-        if (bs.shape != rel_map.shape):
-            raise ValueError("The base station map should be the relevance map size")    
-        
-        m,n = self.base_coord.shape
-        if m < 1:
-            raise ValueError("Minimum one base station should be defined")  
