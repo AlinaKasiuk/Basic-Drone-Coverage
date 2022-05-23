@@ -28,7 +28,7 @@ def test_trained_net(env, iterate=50, model_path="drone_model.pth"):
     model = load_model(model_path)
 
     state_matrix, cameraspot = env.reset()
-    cs = get_current_state(state_matrix, cameraspot)
+    cs = get_current_state(env,state_matrix, cameraspot)
 
     for i in range(iterate):
         env.render(show=True)
@@ -37,12 +37,12 @@ def test_trained_net(env, iterate=50, model_path="drone_model.pth"):
         observation, reward, done, _ = env.step(a)
 
         state_matrix, _, cameraspot = observation
-        cs = get_current_state(state_matrix, cameraspot)
+        cs = get_current_state(env,state_matrix, cameraspot)
 
 
 if __name__ == '__main__':
     
     m_file = "ones.csv"
     env = init_environment(map_file=m_file)
-    test_trained_net(env, iterate=400, model_path="model_27000.pth")
+    test_trained_net(env, iterate=400, model_path="model_30.pth")
     env.close() 

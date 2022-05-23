@@ -64,7 +64,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
         # env.render(show=True)
         # the current state is the initial state
         state_matrix, cameraspot = env.reset()
-        cs = get_current_state(state_matrix, cameraspot)
+        cs = get_current_state(env,state_matrix, cameraspot)
         done = False
         cnt = 0     # number of moves in an episode
         total_reward = 0
@@ -90,7 +90,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
             
             # Getting new state
             state_matrix, _, cameraspot = observation
-            new_state = get_current_state(state_matrix, cameraspot)
+            new_state = get_current_state(env, state_matrix, cameraspot)
             replay_memory.append((cs, a, new_state, reward, done))
                
             # training the model after batch_size iterations
@@ -117,9 +117,9 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
         writer.add_scalar('number of steps', cnt, i)
         writer.add_scalar('total reward', total_reward, i)
         
-        # if (i+1) % 10 == 0:
-        #     output.save_results(i, path, agent.model, df)
-        #     output.save_info_file(path[1], episodes, repmem_limit, i+1, total_dur)
+        if (i+1) % 10 == 0:
+            output.save_results(i, path, agent.model, df)
+            output.save_info_file(path[1], episodes, repmem_limit, i+1, total_dur)
         output.print_episode_info(i, total_reward, cnt, ep_dur, total_a_dur)
 
     writer.close()
@@ -138,7 +138,7 @@ def select_action(model, cs, action_epsilon, device):
     return np.random.choice(act), act_type
 
 
-def get_current_state(state_matrix, camera):
+def get_current_state(env, state_matrix, camera):
     state_matrix = cv2.resize(state_matrix, (32, 32)) / 255
     resize_camera = cv2.resize(env.get_part_relmap_by_camera(camera), state_matrix.shape)
     return np.stack((state_matrix, resize_camera))
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     iterations = 400
     epsilon_decrease = 0
     # How many episodes run: 
-    episodes = 20000
+    episodes = 30
     
     table = train_RL(episodes, iterations, replace_iter, env,
                      action_eps, epsilon_decrease, batch_size,
