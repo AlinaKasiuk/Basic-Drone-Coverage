@@ -73,7 +73,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
         while not done:
             tic = time.perf_counter()
             
-#            env.render(show=False )
+            env.render(show=True )
                        #i > 990)
             cnt += 1
             iter_counts += 1

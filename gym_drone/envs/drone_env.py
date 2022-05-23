@@ -201,7 +201,7 @@ class DroneEnv(gym.Env):
         y_max = camera_spot[:, 1].max() + 1
 
         if x_min >= 0 and y_min >= 0:
-            self.relevance_map[x_min:x_max, y_min:y_max] = 0
+            self.relevance_map[x_min:x_max, y_min:y_max] -= 0.2
 
     def step(self, action):
         
@@ -399,8 +399,8 @@ class DroneEnv(gym.Env):
 
     def get_map_image(self):
         # make a color map of fixed colors
-        cmap = colors.ListedColormap(['blue', 'green', 'red'])
-        bounds = [0, 1, 3, 5]
+        cmap = colors.ListedColormap(['red','orange','yellow', 'green', 'blue', 'black'])
+        bounds = [-0.4, 0, 0.4, 0.8, 1, 3, 5]
         norm = colors.BoundaryNorm(bounds, cmap.N)
         map_image = "tmp.png"
         our_map = np.array(self.relevance_map)
