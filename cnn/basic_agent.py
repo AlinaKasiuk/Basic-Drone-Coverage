@@ -2,7 +2,7 @@ import os
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from torch.optim import Adam
+from torch.optim import AdamW
 from torch.nn import SmoothL1Loss
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ class BasicAgent:
         self.actions = actions
 
         self.criterion = SmoothL1Loss()
-        self.optimizer = Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = AdamW(self.model.parameters(), lr=0.001)
 
         self.gamma = 0.8
         self.train_iterations = 0
