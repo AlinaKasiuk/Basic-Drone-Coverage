@@ -202,6 +202,7 @@ class DroneEnv(gym.Env):
 
         if x_min >= 0 and y_min >= 0:
             self.relevance_map[x_min:x_max, y_min:y_max] -= 0.2
+            self.relevance_map[self.relevance_map < 0] = 0
 
     def step(self, action):
         
