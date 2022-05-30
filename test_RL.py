@@ -26,6 +26,7 @@ def load_model(path):
 def test_trained_net(env, iterate=50, model_path="drone_model.pth"):
     agent = BasicAgent(actions)
     model = load_model(model_path)
+    model.to(agent.device)
 
     state_matrix, cameraspot = env.reset()
     cs = get_current_state(env,state_matrix, cameraspot)
@@ -44,5 +45,5 @@ if __name__ == '__main__':
     
     m_file = "ones.csv"
     env = init_environment(map_file=m_file)
-    test_trained_net(env, iterate=400, model_path="model_30.pth")
+    test_trained_net(env, iterate=400, model_path="model_20000.pth")
     env.close() 
