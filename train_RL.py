@@ -139,9 +139,9 @@ def select_action(model, cs, action_epsilon, device):
 
 
 def get_current_state(env, state_matrix, camera):
-    state_matrix = cv2.resize(state_matrix, (32, 32)) / 255
-    resize_camera = cv2.resize(env.get_part_relmap_by_camera(camera), state_matrix.shape)
-    return np.stack((state_matrix, resize_camera))
+    full_map = env.relevance_map
+    state_matrix = cv2.resize(state_matrix, full_map.shape) / env.max_battery
+    return np.stack((state_matrix, full_map))
 
 
 def get_exp_number(folder='runs'):
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     iterations = 400
     epsilon_decrease = 0
     # How many episodes run: 
-    episodes = 30
+    episodes = 10
     
     table = train_RL(episodes, iterations, replace_iter, env,
                      action_eps, epsilon_decrease, batch_size,
