@@ -45,5 +45,5 @@ if __name__ == '__main__':
     
     m_file = "ones.csv"
     env = init_environment(map_file=m_file)
-    test_trained_net(env, iterate=400, model_path="model_20000.pth")
+    test_trained_net(env, iterate=400, model_path="model_10000.pth")
     env.close() 

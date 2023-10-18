@@ -49,6 +49,7 @@ def train_RL(episodes, iterations, replace_iterations, env, action_epsilon,
     log_dir = 'runs'
     exp_f = os.path.join(log_dir, "exp{0}".format(get_exp_number(log_dir)))
     os.makedirs(exp_f, exist_ok=True)
+    
     writer = SummaryWriter(log_dir=exp_f)
     #    Initialization
     agent = BasicAgent(actions, log_step=100, sw=writer)
