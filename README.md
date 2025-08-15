@@ -1,64 +1,74 @@
-# Drone coverage using deep reinforcement learning
-This is the repository for the code to the project of investigation of using invsestigation project
+# Drone Coverage using Deep Reinforcement Learning
 
-## Project description:
-A camera-equipped UAV can fly over the environment to be monitored to optimize the visual coverage of high-relevance areas. 
+This repository contains the implementation of a deep reinforcement learning (DRL) approach for optimizing the visual coverage of high-relevance areas by a camera-equipped Unmanned Aerial Vehicle (UAV). The project addresses the challenge of limited power and the need for the drone to return to a base station for recharging, while maximizing partial coverage over time.
 
-The power is limited and the drone starts at a base station (BS) full of power, and it is allowed to travel a fixed amount of moves. 
-We use Deep Reinforcement Learning to adopt a patrolling strategy to opimize the PARTIAL coverage throught time and guarantee that the drone returns to the base station for recharge and to prevent the falling down.
+## Project Description
+
+The core idea is to train a UAV to patrol an environment, represented as a grid, to optimize visual coverage. The drone operates with a limited battery life and must learn a patrolling strategy that balances exploration/coverage with timely returns to a base station for recharging. This prevents the drone from running out of power and falling.
+
+## Environment
+
+A custom OpenAI Gym environment has been developed to simulate the drone coverage problem. This environment defines the state space, action space, and reward function for the DRL agent.
+
+### State Space
+
+The environment is a grid of size WxH. The drone's position is represented by its (x, y) grid coordinates and its z-position (height). The battery level is also part of the state.
+
+| Num | Observation | Min | Max |
+| --- | --- | --- | --- |
+| 0 | Current x-pos | 0 | W-1 |
+| 1 | Current y-pos | 0 | H-1 |
+| 2 | Current z-pos | 0 | Z-1 |
+| 4 | Battery level | 0 | 1 |
+
+### Action Space
+
+The drone can perform discrete actions, including movements in various directions and changes in altitude.
+
+| Num | Action |
+| --- | --- |
+| 0 | Forward |
+| 1 | Backward |
+| 2 | Left |
+| 3 | Right |
+| 4 | Up |
+| 5 | Down |
+| 6 | Forward&Left |
+| 7 | Forward&Right |
+| 8 | Backward&Left |
+| 9 | Backward&Right |
+
+### Reward Function
+
+The reward function is designed to incentivize both exploration/coverage and timely returns to the base station. It has two main components:
+
+1.  **Field of View (FOV) Coverage:** Rewards are calculated based on the values within the camera's FOV, considering camera characteristics.
+2.  **Distance to Base:** Rewards are also influenced by the drone's proximity to the base station, encouraging it to return for recharge.
+
+## Neural Network and Training
+
+The project utilizes a neural network (likely a Convolutional Neural Network, given the `cnn` directory) to learn the optimal policy. The `main_RL.py` script is responsible for the training process, which involves:
+
+-   **Initialization:** Setting up the environment and the DRL agent.
+-   **Training Loop:** Iteratively interacting with the environment, collecting rewards, and updating the neural network's weights.
+-   **TensorBoard Logging:** The presence of `adding tensorboard logs` in commit messages suggests that TensorBoard is used for visualizing training progress and metrics.
+
+## Usage
+
+To run the training process, execute `main_RL.py`.
+
+```bash
+python main_RL.py
+```
+
+## Files of Interest
+
+-   `main_RL.py`: Main script for training the reinforcement learning agent.
+-   `gym_drone/`: Contains the custom OpenAI Gym environment definition.
+-   `cnn/`: Contains the neural network architecture and related code.
+-   `constants.py`: Defines various constants used in the environment and training.
+-   `create_maps.py`: Used for generating the grid maps for the environment.
 
 
-## Enviroment:
-
-We created a Custom [Enviroment](https://github.com/AlinaKasiuk/Basic-Drone-Coverage/edit/main/gym_drone/envs/drone_env.py) adobted to study the drone coverage problem.
-
-#### State space
-     
-The map is assumed of grid size WxH. Position of the drone is represented as (grid x index, grid y index), where (0,0) is the top left of the grid ((W-1,H-1) is max value)) z-pos is the hight (Z is maximum flying height);
-     
-Type: Box(4)
-
-Num |    Observation    |   Min   |    Max
-----|-------------------|---------|-----------
-0   |    Current x-pos  |    0    |    W-1
-1   |    Current y-pos  |    0    |    H-1
-2   |    Current z-pos  |    0    |    Z-1
-4   |    Battery level  |    0    |     1
-
-#### Action space:
-
-Type: Discrete(10)
-
-Num  |  Action
------|------------------
-0    |  Forward
-1    |  Backward
-2    |  Left
-3    |  Right
-4    |  Up      
-5    |  Down   
-6    |  Forward&Left
-7    |  Forward&Right 
-8    |  Backward&Left
-9    |  Backward&Right 
-
-#### Reward:
-
-Agent’s utility is deﬁned by the reward function.
-As the drone can fly in two modes (exploration and looking for recharge) the reward function can be decomposed into two parts.  
-The first part calculates from the values incuded in the FOV (field of view) of the camera taking into account camera caracteristics.
-The second part is a function of the distance to the base.
-The expected reward should be maximized. 
-
-
-#### Initial State:
-
-#### Parameters
-
-## Neural Network
-
-## Training model
-
-## Current results
 
 
